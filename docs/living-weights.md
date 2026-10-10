@@ -149,7 +149,13 @@ reproducible, visible in `GET /v1/living/steer`, and the vector maker already
 has the dumped rows.
 
 Per-token RMS is taken over all `hc_mult * hidden` highway values of the token.
-Measured on the served checkpoint (layer 22, RMS_PLACEHOLDER).
+Measured on the served checkpoint (GLM-5.3-Flash NVFP4, layer 22, a 311-token
+neutral prompt, every prompt row dumped): positions 0 and 1 are attention-sink
+tokens with RMS 3.5 and 99.7; the other 309 tokens have mean RMS **0.1115**
+(median 0.107, p10 0.084, p90 0.145). Store the mean without the sink
+positions; with them the mean is 0.44, four times too large for ordinary
+tokens. One unit-RMS vector at dose 1 then has norm 0.1115 * 64 = 7.14 per
+stream.
 
 ### Vector files (`ATLAS_STEER_DIR=DIR`)
 
@@ -210,6 +216,27 @@ Decode and verify calls dump every token (eager calls only). Index line:
   first GLM model built; a hot model swap keeps the first install).
 - The MTP/DFlash drafters' own layers are not steered (drafts only; verify
   rows pass the site).
+
+### Acceptance (Oct 10, pair, image 5ae4c9e88086)
+
+- Nothing configured: 5 prompts x 3 runs greedy on a fresh server, 15/15
+  byte-identical to image 89b17655f3e4's fresh run. Decode (700-token story,
+  2 x 2 runs): new 37.0-37.8 tok/s, old image measured the same session
+  36.0-39.7.
+- A random unit vector loaded (rms 0.1115) at dose 0: 15/15 identical (fresh).
+- `POST /v1/living/steer` switches the dose live on both ranks (0, +1, -1, 0,
+  +0.5, -0.5, 0 without restart, each with a prefix flush); +-1 and +-0.5 change
+  both test prompts' outputs, which stay coherent; health 200 throughout. The
+  POST returns in ~1 ms when idle and is held until the in-flight request ends
+  when one is running.
+- Warm servers are not run-to-run deterministic (DFlash, cache state): after a
+  few dozen requests greedy outputs drift (8-9/15 match the fresh baseline)
+  with the dose never leaving 0 as well as after toggling, so the drift is
+  not steering residue.
+- Layer dump: finite rows, RMS 0.06-0.16 per token, prefill and (eager)
+  verify rows at every dose.
+- Soak at dose 0.5: 4 streams x 317 s, 60 requests, 21155 tokens, 66.6 tok/s
+  aggregate, 0 errors; decode at dose 0.5 38.2-40.5 tok/s.
 
 ## Microtest
 
