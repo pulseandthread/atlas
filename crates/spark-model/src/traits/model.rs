@@ -434,6 +434,14 @@ pub trait Model: Send + Sync {
         bail!("this model does not support LoRA disk promotion")
     }
 
+    /// Living weights: set the middle-layer steering dose on every rank
+    /// (`spark_model::living::steer`), and with `flush_prefix_cache` drop the
+    /// cached prefixes computed under the old dose. MUST be called at a
+    /// scheduler quiescent point. Default: unsupported.
+    fn set_living_steer(&mut self, _dose: f32, _flush_prefix_cache: bool) -> Result<()> {
+        bail!("this model does not support living-weights steering")
+    }
+
     /// Dims for the `--high-speed-swap` orchestrator (installed thread-local
     /// after `bind_gpu_to_thread`). `None` for legacy/non-attention models.
     fn high_speed_swap_dims(&self) -> Option<spark_storage::ModelDims> {

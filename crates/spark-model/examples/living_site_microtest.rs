@@ -3,13 +3,14 @@
 //! Correctness microtest for the living-weights site kernel
 //! (`living_site`, `spark_model::living::launch_living_site`):
 //!
-//!   out = x + (v + scale * ((x · Aᵀ) · B))     x/out BF16, A/B/v F32
+//!   out = x + (dose * v + scale * ((x · Aᵀ) · B))     x/out BF16 or F32, A/B/v F32
 //!
 //! against an F32 CPU reference, through the production launcher on the real
 //! `GpuBackend`. Cases: rank 0 / v off is an exact copy (out-of-place and in
 //! place); random rank-r with v, several rows; the full rank (512) in place;
-//! and a rank change made ONLY through the device control word, which is what
-//! keeps captured CUDA graphs valid.
+//! a rank change made ONLY through the device control word, which is what
+//! keeps captured CUDA graphs valid; and the steering shape (v only, dose from
+//! the control word, in place, BF16 and the F32 twin `living_site_f32`).
 //!
 //! Tolerance: the reference is rounded to BF16 the same way the kernel rounds
 //! its output; the two may differ by summation order, so each element may be
@@ -66,7 +67,10 @@ impl Gpu<'_> {
         self.upload(&v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>())
     }
     fn ctrl(&self, p: DevicePtr, rank: u32, v_on: bool) -> Result<()> {
-        let words = [rank, u32::from(v_on), 0, 0];
+        self.ctrl_dose(p, rank, v_on, 1.0)
+    }
+    fn ctrl_dose(&self, p: DevicePtr, rank: u32, v_on: bool, dose: f32) -> Result<()> {
+        let words = [rank, u32::from(v_on), dose.to_bits(), 0];
         let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
         self.gpu.copy_h2d(&bytes, p)
     }
@@ -255,6 +259,43 @@ fn main() -> Result<()> {
     g.ctrl(ctrl, 0, false)?;
     g.run(dx, out, da, db, dv, ctrl, 1.0, rows, h)?;
     ok &= exact("ctrl word -> rank 0 again", &g.read_bf16(out, rows * h)?, &x);
+
+    // 8. Steering shape: v only, dose from the control word, in place.
+    let steer = g.bf16s(&x)?;
+    g.ctrl_dose(ctrl, 0, true, -0.75)?;
+    g.run(steer, steer, dv, dv, dv, ctrl, 0.0, rows, h)?;
+    let scaled: Vec<f32> = v.iter().map(|x| x * -0.75).collect();
+    let want = reference(&x, &a, &b, Some(&scaled), 0.0, 0, rows, h);
+    ok &= compare("steer: v only, dose -0.75, in place", &g.read_bf16(steer, rows * h)?, &want);
+    g.ctrl_dose(ctrl, 0, false, 0.0)?;
+    let steer = g.bf16s(&x)?;
+    g.run(steer, steer, dv, dv, dv, ctrl, 0.0, rows, h)?;
+    ok &= exact("steer: dose 0 (off), in place", &g.read_bf16(steer, rows * h)?, &x);
+
+    // 9. The F32 twin (an FP32 highway), v only, dose 2.
+    let f32_kernel = gpu.kernel("living_site", "living_site_f32")?;
+    let xf: Vec<f32> = x.iter().map(|&b| bf16_to_f32(b)).collect();
+    let dxf = g.f32s(&xf)?;
+    g.ctrl_dose(ctrl, 0, true, 2.0)?;
+    launch_living_site(
+        gpu, f32_kernel, dxf, dxf, dv, dv, dv, ctrl, 0.0, rows as u32, h as u32, g.stream,
+    )?;
+    gpu.synchronize(g.stream)?;
+    let mut got = vec![0u8; rows * h * 4];
+    gpu.copy_d2h(dxf, &mut got)?;
+    let max_err = got
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .enumerate()
+        .map(|(i, g)| (g - (xf[i] + 2.0 * v[i % h])).abs())
+        .fold(0f32, f32::max);
+    let pass = max_err == 0.0;
+    println!(
+        "  {:4} {:42} max_abs_err={max_err:.3e}",
+        if pass { "PASS" } else { "FAIL" },
+        "steer f32: v only, dose 2, in place"
+    );
+    ok &= pass;
 
     if !ok {
         println!("RESULT: FAIL");

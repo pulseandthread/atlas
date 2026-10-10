@@ -42,6 +42,7 @@ pub mod conversations;
 pub mod inference_impl;
 mod inference_repair;
 pub mod inference_types;
+pub mod living_control;
 pub mod lora_control;
 pub mod misc_handlers;
 pub mod models;
@@ -80,6 +81,7 @@ pub use inference_types::{
     GrammarSpec, InferenceRequest, InferenceResponse, InvalidRequestError, StreamEvent,
     TokenLogprobs,
 };
+pub use living_control::{get_living_steer, set_living_steer};
 pub use lora_control::{load_lora_into_slot, set_active_lora};
 #[allow(unused_imports)]
 pub use misc_handlers::{

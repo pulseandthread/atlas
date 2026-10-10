@@ -249,6 +249,9 @@ impl Model for TransformerModel {
     fn set_active_lora(&mut self, name: &str) -> Result<()> {
         self.rotate_lora_to(name)
     }
+    fn set_living_steer(&mut self, dose: f32, flush_prefix_cache: bool) -> Result<()> {
+        self.living_steer_set(dose, flush_prefix_cache)
+    }
     fn adapter_id_for(&self, slot: i32) -> u64 {
         self.adapter_id_for_slot(slot)
     }

@@ -155,7 +155,7 @@ pub(crate) fn load_model(
         .clone()
         .or_else(|| std::env::var_os("ATLAS_LIVING_DIR").map(std::path::PathBuf::from))
         .filter(|d| !d.as_os_str().is_empty());
-    if config.living_dir.is_some() {
+    if config.living_dir.is_some() || spark_model::living::steer::requested() {
         config.living_base = spark_model::living::served_revision(&model_dir);
     }
 
@@ -1231,7 +1231,9 @@ pub(crate) fn load_model(
         )),
         max_seq_len: args.max_seq_len,
         request_tx,
-        rotation_tx: if lora_states.is_empty() {
+        // The same quiescent-point channel carries the living-weights steering
+        // dose (`POST /v1/living/steer`).
+        rotation_tx: if lora_states.is_empty() && !spark_model::living::steer::requested() {
             None
         } else {
             Some(rotation_tx)

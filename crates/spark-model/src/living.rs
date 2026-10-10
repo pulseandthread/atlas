@@ -27,6 +27,10 @@
 //! `ATLAS_DUMP_LAST_HIDDEN=DIR` is the read-out side: [`dump`] appends the
 //! pre-norm rows handed to the final norm to `DIR/hidden.f32` (row-major F32)
 //! with one `DIR/index.jsonl` line per call.
+//!
+//! [`steer`] is the same kernel, v term only, on the mHC highway after a
+//! middle layer (`ATLAS_STEER_LAYER`), with its dose set at runtime, and its
+//! own read-out (`ATLAS_DUMP_LAYER_HIDDEN`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -34,6 +38,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use spark_runtime::gpu::{DevicePtr, GpuBackend, KernelHandle};
 use spark_runtime::kernel_args::KernelLaunch;
+
+pub mod steer;
 
 /// Rows the device buffers hold; the summed rank of all loaded files.
 pub const MAX_RANK: usize = 512;
@@ -121,7 +127,9 @@ impl LivingSite {
         gpu.copy_h2d(&f32_bytes(&a_full), a)?;
         gpu.copy_h2d(&f32_bytes(&b_full), b)?;
         gpu.copy_h2d(&f32_bytes(&v_full), v)?;
-        let words = [host.rank as u32, u32::from(host.v.is_some()), 0, 0];
+        // [rank, v enabled, v multiplier (F32 bits), 0]: the final site always
+        // adds its v at 1.0.
+        let words = [host.rank as u32, u32::from(host.v.is_some()), 1f32.to_bits(), 0];
         let ctrl_bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
         gpu.copy_h2d(&ctrl_bytes, ctrl)?;
         tracing::info!(
@@ -377,18 +385,17 @@ pub mod dump {
     use anyhow::Result;
     use spark_runtime::gpu::{DevicePtr, GpuBackend};
 
-    struct Sink {
+    pub(crate) struct Sink {
         rows: std::fs::File,
         index: std::fs::File,
         offset: u64,
     }
 
-    fn sink() -> Option<&'static Mutex<Sink>> {
-        static SINK: OnceLock<Option<Mutex<Sink>>> = OnceLock::new();
-        SINK.get_or_init(|| {
-            let dir = std::env::var("ATLAS_DUMP_LAST_HIDDEN")
-                .ok()
-                .filter(|d| !d.is_empty())?;
+    impl Sink {
+        /// Open `$var/hidden.f32` and `$var/index.jsonl` for appending, if the
+        /// environment variable `var` names a directory.
+        pub(crate) fn open(var: &str) -> Option<Mutex<Sink>> {
+            let dir = std::env::var(var).ok().filter(|d| !d.is_empty())?;
             let dir = std::path::Path::new(&dir);
             let open = |name: &str| {
                 std::fs::create_dir_all(dir)?;
@@ -400,7 +407,7 @@ pub mod dump {
             match (open("hidden.f32"), open("index.jsonl")) {
                 (Ok(rows), Ok(index)) => {
                     let offset = rows.metadata().map(|m| m.len()).unwrap_or(0);
-                    tracing::info!("ATLAS_DUMP_LAST_HIDDEN: appending to {}", dir.display());
+                    tracing::info!("{var}: appending to {}", dir.display());
                     Some(Mutex::new(Sink {
                         rows,
                         index,
@@ -408,12 +415,29 @@ pub mod dump {
                     }))
                 }
                 (Err(e), _) | (_, Err(e)) => {
-                    tracing::warn!("ATLAS_DUMP_LAST_HIDDEN={}: {e}; not dumping", dir.display());
+                    tracing::warn!("{var}={}: {e}; not dumping", dir.display());
                     None
                 }
             }
-        })
-        .as_ref()
+        }
+
+        /// Append F32 row bytes, then one index line: `line` gets the byte
+        /// offset the rows start at.
+        pub(crate) fn append(
+            &mut self,
+            f32s: &[u8],
+            line: impl FnOnce(u64) -> serde_json::Value,
+        ) -> std::io::Result<()> {
+            let offset = self.offset;
+            self.rows.write_all(f32s)?;
+            self.offset += f32s.len() as u64;
+            writeln!(self.index, "{}", line(offset))
+        }
+    }
+
+    fn sink() -> Option<&'static Mutex<Sink>> {
+        static SINK: OnceLock<Option<Mutex<Sink>>> = OnceLock::new();
+        SINK.get_or_init(|| Sink::open("ATLAS_DUMP_LAST_HIDDEN")).as_ref()
     }
 
     /// Whether dumping is on; resolved once.
@@ -463,19 +487,17 @@ pub mod dump {
             .collect();
         let call = CALL.fetch_add(1, Ordering::Relaxed);
         let mut s = sink.lock().unwrap_or_else(|e| e.into_inner());
-        let offset = s.offset;
-        s.rows.write_all(&f32s)?;
-        s.offset += f32s.len() as u64;
-        let line = serde_json::json!({
-            "call": call,
-            "slot": tag.map(|t| t.0),
-            "seq_len": tag.map(|t| t.1),
-            "n_rows": rows,
-            "hidden": h,
-            "offset": offset,
-            "site": format!("{}:{}", site.file(), site.line()),
-        });
-        writeln!(s.index, "{line}")?;
+        s.append(&f32s, |offset| {
+            serde_json::json!({
+                "call": call,
+                "slot": tag.map(|t| t.0),
+                "seq_len": tag.map(|t| t.1),
+                "n_rows": rows,
+                "hidden": h,
+                "offset": offset,
+                "site": format!("{}:{}", site.file(), site.line()),
+            })
+        })?;
         Ok(())
     }
 }

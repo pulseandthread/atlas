@@ -75,6 +75,10 @@ pub(crate) async fn build_and_serve(
         .route("/v1/messages/count_tokens", post(anthropic::count_tokens))
         .route("/v1/lora/active", post(api::set_active_lora))
         .route("/v1/lora/load", post(api::load_lora_into_slot))
+        .route(
+            "/v1/living/steer",
+            get(api::get_living_steer).post(api::set_living_steer),
+        )
         .route("/v1/models", get(api::list_models))
         .route("/v1/models/{*model_id}", get(api::get_model))
         .route("/v1/embeddings", post(api::embeddings_stub))

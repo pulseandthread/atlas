@@ -43,6 +43,15 @@ impl Glm5KdaLayer {
                 stream,
             )?;
         }
+        crate::living::steer::hook(
+            ctx,
+            self.layer_idx,
+            crate::living::steer::Spot::Start,
+            m_hc as usize,
+            self.hc.hc_mult,
+            steer_kind(decode, capture_verify_intermediates),
+            stream,
+        )?;
         self.hc_pre(&self.hc.attn, hidden, m_hc, ctx, stream)?;
         // ATLAS_GLM_DET_TRACE stages; `det_rows` are the seam (local) rows.
         let det = crate::det_trace::on_stream(ctx.gpu, stream);

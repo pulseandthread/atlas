@@ -183,6 +183,9 @@ pub enum LoraCommand {
         name: String,
         dir: std::path::PathBuf,
     },
+    /// Living weights: set the middle-layer steering dose on every rank
+    /// (`POST /v1/living/steer`), optionally flushing the prefix cache.
+    LivingSteer { dose: f32, flush_prefix_cache: bool },
 }
 
 /// Successful result of a [`LoraCommand`] applied at quiescence. Rotate/Load
@@ -565,6 +568,19 @@ pub fn run(
                             .map_err(|e| format!("{e:#}"));
                         if let Err(ref e) = r {
                             tracing::warn!("LoRA promote '{name}' failed: {e}");
+                        }
+                        r
+                    }
+                    LoraCommand::LivingSteer {
+                        dose,
+                        flush_prefix_cache,
+                    } => {
+                        let r = model
+                            .set_living_steer(dose, flush_prefix_cache)
+                            .map(|()| LoraAck::Done)
+                            .map_err(|e| format!("{e:#}"));
+                        if let Err(ref e) = r {
+                            tracing::warn!("living steer dose {dose} failed: {e}");
                         }
                         r
                     }

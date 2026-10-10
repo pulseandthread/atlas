@@ -92,6 +92,16 @@ fn verify_fused_moe_hc_check_once() -> bool {
     }) && !CHECKED.swap(true, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// The living-weights steering read-out's call kind for a forward over rows.
+fn steer_kind(decode: bool, capture_verify_intermediates: bool) -> crate::living::steer::Kind {
+    use crate::living::steer::Kind;
+    match (decode, capture_verify_intermediates) {
+        (true, _) => Kind::Decode,
+        (false, true) => Kind::Verify,
+        (false, false) => Kind::Prefill,
+    }
+}
+
 pub struct Glm5KdaLayer {
     input_norm: DenseWeight,
     post_attn_norm: DenseWeight,

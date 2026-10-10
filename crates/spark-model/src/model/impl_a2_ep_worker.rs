@@ -11,6 +11,7 @@
 //! - 0xFFFFFFE1: distributed GLM MTP propose → token, position, drafts, hidden row
 //! - 0xFFFFFFEB: prefill chunk carrying DFlash verify owners (`glm_fused_chunk`)
 //! - 0xFFFFFFEC: serve this rank's half of a split DFlash propose (`draft_assist`)
+//! - 0xFFFFFFED: set the living-weights steering dose (`living_steer`)
 
 use anyhow::Result;
 
@@ -144,6 +145,9 @@ impl TransformerModel {
         }
         if cmd == super::draft_assist::EP_CMD_DRAFT_ASSIST {
             return self.draft_assist_serve(seq_id).map(Some);
+        }
+        if cmd == super::living_steer::EP_CMD_LIVING_STEER {
+            return self.living_steer_receive().map(Some);
         }
         Ok(None)
     }

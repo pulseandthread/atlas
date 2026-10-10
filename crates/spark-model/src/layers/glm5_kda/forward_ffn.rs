@@ -154,6 +154,15 @@ impl Glm5KdaLayer {
             self.hc_post(ffn_out, m, ctx, stream)?;
         }
         profile::step(ctx, stream, &mut profile_timer, "hc_ffn_post")?;
+        crate::living::steer::hook(
+            ctx,
+            self.layer_idx,
+            crate::living::steer::Spot::End,
+            m as usize,
+            self.hc.hc_mult,
+            steer_kind(decode, capture_verify_intermediates),
+            stream,
+        )?;
 
         if self.layer_idx + 1 == ctx.config.num_hidden_layers {
             ops::hc_contract(

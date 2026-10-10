@@ -114,6 +114,15 @@ impl Glm5KdaLayer {
                 stream,
             )?;
         }
+        crate::living::steer::hook(
+            ctx,
+            self.layer_idx,
+            crate::living::steer::Spot::Start,
+            m as usize,
+            self.hc.hc_mult,
+            crate::living::steer::Kind::Decode,
+            stream,
+        )?;
         self.hc_pre(&self.hc.attn, hidden, m, ctx, stream)?;
 
         let normed = ctx.buffers.norm_output();
@@ -379,6 +388,15 @@ impl Glm5KdaLayer {
             }
         }
 
+        crate::living::steer::hook(
+            ctx,
+            self.layer_idx,
+            crate::living::steer::Spot::End,
+            m as usize,
+            self.hc.hc_mult,
+            crate::living::steer::Kind::Decode,
+            stream,
+        )?;
         if self.layer_idx + 1 == ctx.config.num_hidden_layers {
             ops::hc_contract(
                 ctx.gpu,

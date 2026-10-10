@@ -55,6 +55,9 @@ impl TransformerModel {
     /// Load the living-weights sidecar named by `config.living_dir`, if any.
     /// Called once at build, before any CUDA graph is captured.
     pub(crate) fn install_living(&mut self) -> Result<()> {
+        // Middle-layer steering and its read-out (environment only; a no-op
+        // unless ATLAS_STEER_DIR or ATLAS_DUMP_LAYER_HIDDEN is set).
+        crate::living::steer::install(self.gpu.as_ref(), &self.config, &self.config.living_base)?;
         let Some(dir) = self.config.living_dir.clone() else {
             return Ok(());
         };
