@@ -772,6 +772,10 @@ pub fn build_model(
         ssm_pools,
     )?;
 
+    // ── Step 6a: living-weights sidecar (optional, post-construction) ──
+    // Before any CUDA graph is captured: the graphs bind its buffers.
+    model.install_living()?;
+
     // ── Step 6b: DeepSeek-V4 MTP proposer (optional, post-construction) ──
     //
     // Built here (not inside `new()`, which only knows the Qwen-shaped

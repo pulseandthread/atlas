@@ -148,6 +148,16 @@ pub(crate) fn load_model(
     // `--attn-proj-dtype bf16`: keep the full-attention Q/K/V/O at checkpoint
     // BF16 (validated by `validate_serve_args`; `default`/`nvfp4` quantize).
     config.attn_proj_bf16 = args.attn_proj_dtype == "bf16";
+    // Living-weights sidecar (off unless a directory is named). The revision
+    // its files must match is read here, where the model directory is known.
+    config.living_dir = args
+        .living_dir
+        .clone()
+        .or_else(|| std::env::var_os("ATLAS_LIVING_DIR").map(std::path::PathBuf::from))
+        .filter(|d| !d.as_os_str().is_empty());
+    if config.living_dir.is_some() {
+        config.living_base = spark_model::living::served_revision(&model_dir);
+    }
 
     // ModelOpt-exported checkpoints drop a sibling `hf_quant_config.json`
     // whose TOP LEVEL is already the quantization block.

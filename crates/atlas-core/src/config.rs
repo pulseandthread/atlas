@@ -184,6 +184,15 @@ pub struct ModelConfig {
     /// q/k perturbations reroute attention on long prompts.
     #[serde(skip)]
     pub attn_proj_bf16: bool,
+    /// Living-weights sidecar directory (`--living-dir` / `ATLAS_LIVING_DIR`),
+    /// applied before the final norm; `None` = off, nothing allocated or
+    /// launched. Serve-time: `skip`.
+    #[serde(skip)]
+    pub living_dir: Option<std::path::PathBuf>,
+    /// The served checkpoint's revision every sidecar file's `base` must name
+    /// (see `spark_model::living::served_revision`). Serve-time: `skip`.
+    #[serde(skip)]
+    pub living_base: String,
 
     // ── Model type ──
     #[serde(default)]

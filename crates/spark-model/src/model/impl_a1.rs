@@ -635,6 +635,7 @@ impl TransformerModel {
             ngram_embed: None,
             final_norm,
             final_norm_identity,
+            living: None,
             lm_head_weight,
             lm_head_nvfp4,
             lm_head_nvfp4_t,

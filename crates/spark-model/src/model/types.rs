@@ -71,6 +71,9 @@ pub struct TransformerModel {
     /// in the last layer) is the final normalization and the reference feeds
     /// its output straight to lm_head. See `final_norm_rows`.
     pub(super) final_norm_identity: bool,
+    /// Living-weights site applied in front of the final norm
+    /// (`crate::living`). `None` unless `--living-dir` named a directory.
+    pub(super) living: Option<crate::living::LivingSite>,
     pub(super) lm_head_weight: DenseWeight,
     pub(super) lm_head_nvfp4: Option<QuantizedWeight>,
     /// TRANSPOSED `[K/2, ldb]` twin of `lm_head_nvfp4` + its PADDED row stride.

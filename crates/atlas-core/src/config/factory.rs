@@ -55,6 +55,8 @@ impl ModelConfig {
             max_seq_len: 0,
             lm_head_fp8: false,
             attn_proj_bf16: false,
+            living_dir: None,
+            living_base: String::new(),
             model_type: "qwen3_next".to_string(),
             mtp_num_hidden_layers: 1,
             dspark_block_size: 0,

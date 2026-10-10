@@ -418,6 +418,14 @@ pub struct ServeArgs {
     #[arg(long, default_value = "default")]
     pub attn_proj_dtype: String,
 
+    /// Living-weights sidecar directory: `index.json` plus safetensors files
+    /// with a low-rank residual change (`A`, `B`, optional `v`) applied before
+    /// the final norm. Every rank loads the same directory; a file made for a
+    /// different checkpoint revision is refused. `LIVING_TOPICS=a,b` loads
+    /// only those topics. Falls back to `ATLAS_LIVING_DIR`. Off by default.
+    #[arg(long)]
+    pub living_dir: Option<std::path::PathBuf>,
+
     /// Boundary attention layers to keep at BF16 KV cache precision (first N + last N).
     /// Protects attention sink tokens (early layers) and output quality (final layers)
     /// from quantization error while saving memory on middle layers.

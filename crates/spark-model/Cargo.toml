@@ -114,6 +114,10 @@ name = "glm_hc_seam_bench"
 required-features = ["cuda", "gpu-examples"]
 
 [[example]]
+name = "living_site_microtest"
+required-features = ["cuda", "gpu-examples"]
+
+[[example]]
 name = "glm_sparse_split_bench"
 required-features = ["cuda", "gpu-examples"]
 

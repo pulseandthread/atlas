@@ -23,6 +23,7 @@ pub mod factory;
 pub mod forward;
 pub mod layer;
 pub mod layers;
+pub mod living;
 pub mod lora;
 pub mod mistral_loader;
 pub mod model;

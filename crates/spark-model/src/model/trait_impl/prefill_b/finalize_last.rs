@@ -129,6 +129,7 @@ impl TransformerModel {
         let last_token_offset = hidden_stream_offset_tokens + proc_count - 1;
         let last_hidden = hidden.offset(last_token_offset * h * fp32);
         let normed = self.buffers.norm_output();
+        crate::living::dump::tag(seq.slot_idx, tokens.len());
         self.final_norm_rows(last_hidden, normed, 1, stream)?;
 
         // Diagnostic: post-norm hidden state

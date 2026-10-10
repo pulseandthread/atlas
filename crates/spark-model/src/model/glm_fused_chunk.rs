@@ -261,15 +261,10 @@ impl TransformerModel {
         let total = p.total();
         let b = &self.buffers;
         let normed = b.norm_output().offset(chunk * h * 2);
-        ops::rms_norm(
-            self.gpu.as_ref(),
-            self.rms_norm_kernel,
+        self.final_norm_rows(
             b.hidden_states().offset(chunk * h * 2),
-            &self.final_norm,
             normed,
             total as u32,
-            h as u32,
-            self.config.rms_norm_eps as f32,
             stream,
         )?;
         let ban = p.seqs.first().map(|s| s.eos_ban).unwrap_or_default();

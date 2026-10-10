@@ -503,6 +503,7 @@ impl TransformerModel {
         // ── 5. Final norm on LAST token only ──
         let last_hidden = hidden.offset((proc_count - 1) * h * fp32);
         let normed = self.buffers.norm_output();
+        crate::living::dump::tag(seq.slot_idx, seq_len_start + proc_count);
         self.final_norm_rows(last_hidden, normed, 1, stream)?;
 
         // ── 6. LM head on last token → logits ──

@@ -52,12 +52,34 @@ pub(crate) fn check_final_norm_identity(config: &ModelConfig) -> Result<()> {
 }
 
 impl TransformerModel {
+    /// Load the living-weights sidecar named by `config.living_dir`, if any.
+    /// Called once at build, before any CUDA graph is captured.
+    pub(crate) fn install_living(&mut self) -> Result<()> {
+        let Some(dir) = self.config.living_dir.clone() else {
+            return Ok(());
+        };
+        let site = crate::living::LivingSite::load(
+            self.gpu.as_ref(),
+            &dir,
+            &self.config.living_base,
+            self.config.hidden_size,
+        )?;
+        self.living = Some(site);
+        Ok(())
+    }
+
     /// Final norm of `rows` hidden rows into `output`: the usual RMSNorm, or a
     /// plain copy when the model's final normalization already happened
     /// (`final_norm_identity`).
     ///
+    /// Two opt-in hooks run first: `ATLAS_DUMP_LAST_HIDDEN` copies the rows
+    /// out (eager calls only), and a living-weights sidecar writes
+    /// `input + delta` to `output`, which is then normalized in place —
+    /// `input` itself is never modified.
+    ///
     /// Precondition: the rows are BF16 `[rows, hidden_size]` — post-mixer
     /// (collapsed to `hidden_size` by the last layer) when the identity applies.
+    #[track_caller]
     pub(super) fn final_norm_rows(
         &self,
         input: DevicePtr,
@@ -66,6 +88,24 @@ impl TransformerModel {
         stream: u64,
     ) -> Result<()> {
         let h = self.config.hidden_size;
+        if crate::living::dump::enabled() {
+            crate::living::dump::rows(
+                self.gpu.as_ref(),
+                input,
+                rows,
+                h,
+                self.config.tp_rank,
+                std::panic::Location::caller(),
+                stream,
+            )?;
+        }
+        let input = match &self.living {
+            Some(site) => {
+                site.apply(self.gpu.as_ref(), input, output, rows, stream)?;
+                output
+            }
+            None => input,
+        };
         if self.final_norm_identity {
             if input == output {
                 return Ok(());
