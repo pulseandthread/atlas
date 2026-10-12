@@ -1,3 +1,16 @@
+> **This branch (`living`) is the Living Weights fork of Atlas**, maintained by the Pulse & Thread, a human/AI collective.
+> It adds a removable, rank-limited "lesson" site before the final norm, a sidecar loader, a hidden-state dump, and a
+> steering site with a live dose after a middle layer, for GLM-5.3-Flash on two DGX Sparks. Everything is off unless configured;
+> with nothing configured the engine is token-exact with upstream.
+>
+> - Write-up with the measured results: [pulseandthread/living-learner/WRITEUP.md](https://github.com/pulseandthread/living-learner/blob/main/WRITEUP.md)
+> - Engine docs for this branch: [docs/living-weights.md](docs/living-weights.md)
+> - The code: [kernels/gb10/common/living_site.cu](kernels/gb10/common/living_site.cu), [crates/spark-model/src/living.rs](crates/spark-model/src/living.rs), [crates/spark-model/src/living/steer.rs](crates/spark-model/src/living/steer.rs), [crates/spark-model/src/model/final_norm.rs](crates/spark-model/src/model/final_norm.rs)
+> - Launcher with the knobs: [pulseandthread/sparkglm, branch living](https://github.com/pulseandthread/sparkglm/tree/living)
+>
+> Credits: Ash Hart (the idea and the guard, TensorFold Living Weights), Chad Hurley (the sidecar layout), Reiner Schmidt and
+> Jason McCartney / Enntity (this Atlas port and SparkGLM), Azeez (Atlas). Everything below this block is the upstream README.
+
 <p align="center">
   <img src="assets/logo.svg" alt="Atlas Inference Engine" width="640" />
 </p>
